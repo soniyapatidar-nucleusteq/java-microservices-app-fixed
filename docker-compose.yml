@@ -1,0 +1,14 @@
+services:
+  inventory-service:
+    build: ./inventory-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+
+  order-service:
+    build: ./order-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVER_PORT=8082

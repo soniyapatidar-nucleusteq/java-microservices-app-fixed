@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Microservice Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 p-8 font-sans">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <h1 class="text-3xl font-bold text-gray-800">📦 Microservices Management Panel</h1>
+        <div id="status" class="hidden p-3 rounded text-sm"></div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4 text-blue-600">Inventory Service (Port 8081)</h2>
+                <div class="flex gap-2 mb-4">
+                    <input id="itemName" placeholder="Item Name" class="border p-2 rounded w-full">
+                    <input id="itemQty" type="number" placeholder="Qty" class="border p-2 rounded w-24">
+                    <button onclick="addItem()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add</button>
+                </div>
+                <ul id="inventoryList" class="divide-y divide-gray-200"></ul>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4 text-green-600">Order Service (Port 8082)</h2>
+                <div class="flex gap-2 mb-4">
+                    <input id="orderProduct" placeholder="Product Name" class="border p-2 rounded w-full">
+                    <input id="orderPrice" type="number" step="0.01" placeholder="Price" class="border p-2 rounded w-24">
+                    <button onclick="addOrder()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Order</button>
+                </div>
+                <ul id="orderList" class="divide-y divide-gray-200"></ul>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-red-600">Inventory Error Simulation</h2>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <input id="notFoundId" type="number" placeholder="Item ID" class="border p-2 rounded w-28">
+                <button onclick="triggerError('not-found')" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">Throw Inventory Not Found</button>
+                <button onclick="triggerError('out-of-memory')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Throw Out Of Memory</button>
+            </div>
+            <pre id="errorResult" class="hidden bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Inventory API is served by the same service as this page -> same origin.
+        // Order API lives on port 8082 of whatever host the page was loaded from,
+        // so this works on localhost, a LAN IP, a VM, or a remote server.
+        const INV_API = '/api/items';
+        const ORD_API = `${window.location.protocol}//${window.location.hostname}:8082/api/orders`;
+
+        function showStatus(msg, isError = true) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = 'p-3 rounded text-sm ' + (isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+            clearTimeout(showStatus._t);
+            showStatus._t = setTimeout(() => el.className = 'hidden', 5000);
+        }
+
+        function esc(v) {
+            return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        async function api(url, options = {}) {
+            let res;
+            try {
+                res = await fetch(url, options);
+            } catch (e) {
+                throw new Error(`Cannot reach ${url} - is the service running? (${e.message})`);
+            }
+            const text = await res.text();
+            if (!res.ok) {
+                let detail = '';
+                try { detail = JSON.parse(text).message || ''; } catch (_) {}
+                throw new Error(`${options.method || 'GET'} ${url} failed: HTTP ${res.status}${detail ? ' - ' + detail : ''}`);
+            }
+            return text ? JSON.parse(text) : null;
+        }
+
+        async function triggerError(type) {
+            const out = document.getElementById('errorResult');
+            let url = `${INV_API}/errors/${type}`;
+            if (type === 'not-found') {
+                const id = document.getElementById('notFoundId').value;
+                if (id !== '') url += `?id=${encodeURIComponent(id)}`;
+            }
+            try {
+                const res = await fetch(url);
+                const text = await res.text();
+                let body;
+                try { body = JSON.stringify(JSON.parse(text), null, 2); } catch (_) { body = text; }
+                out.textContent = `GET ${url}\nHTTP ${res.status}\n\n${body}`;
+                out.className = 'bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto';
+                let msg = `HTTP ${res.status}`;
+                try { msg = JSON.parse(text).message || msg; } catch (_) {}
+                showStatus(msg, !res.ok);
+            } catch (e) { console.error(e); showStatus(`Cannot reach ${url} - is the service running? (${e.message})`); }
+        }
+
+        async function loadInventory() {
+            try {
+                const items = await api(INV_API);
+                document.getElementById('inventoryList').innerHTML = items.map(i => `
+                    <li class="py-2 flex justify-between items-center">
+                        <span><strong>${esc(i.name)}</strong> (${esc(i.quantity)} units)</span>
+                        <button onclick="deleteItem(${Number(i.id)})" class="text-red-500 hover:underline text-sm">Delete</button>
+                    </li>`).join('');
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function loadOrders() {
+            try {
+                const orders = await api(ORD_API);
+                document.getElementById('orderList').innerHTML = orders.map(o => `
+                    <li class="py-2 flex justify-between items-center">
+                        <span>Order #${Number(o.id)}: <strong>${esc(o.productName)}</strong> - $${Number(o.price).toFixed(2)}</span>
+                        <button onclick="deleteOrder(${Number(o.id)})" class="text-red-500 hover:underline text-sm">Cancel</button>
+                    </li>`).join('');
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function addItem() {
+            const nameEl = document.getElementById('itemName');
+            const qtyEl = document.getElementById('itemQty');
+            const name = nameEl.value.trim();
+            const quantity = parseInt(qtyEl.value, 10);
+            if (!name || Number.isNaN(quantity) || quantity < 0) {
+                showStatus('Enter an item name and a quantity of 0 or more.');
+                return;
+            }
+            try {
+                await api(INV_API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, quantity }) });
+                nameEl.value = ''; qtyEl.value = '';
+                showStatus(`Added "${name}"`, false);
+                await loadInventory();
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function addOrder() {
+            const prodEl = document.getElementById('orderProduct');
+            const priceEl = document.getElementById('orderPrice');
+            const productName = prodEl.value.trim();
+            const price = parseFloat(priceEl.value);
+            if (!productName || Number.isNaN(price) || price < 0) {
+                showStatus('Enter a product name and a price of 0 or more.');
+                return;
+            }
+            try {
+                await api(ORD_API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ productName, price }) });
+                prodEl.value = ''; priceEl.value = '';
+                showStatus(`Order placed for "${productName}"`, false);
+                await loadOrders();
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function deleteItem(id) {
+            try { await api(`${INV_API}/${id}`, { method: 'DELETE' }); await loadInventory(); }
+            catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function deleteOrder(id) {
+            try { await api(`${ORD_API}/${id}`, { method: 'DELETE' }); await loadOrders(); }
+            catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        loadInventory();
+        loadOrders();
+    </script>
+</body>
+</html>
