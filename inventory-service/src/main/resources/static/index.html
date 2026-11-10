@@ -41,6 +41,21 @@
             </div>
             <pre id="errorResult" class="hidden bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto"></pre>
         </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-1 text-purple-700">Log Resolution Scenarios</h2>
+            <p class="text-sm text-gray-500 mb-4">Writes log lines for the observability platform to resolve. See them in its Log Status tab.</p>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button onclick="emitLogs('noise')" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                        title="Junk, non-standard and unrelated lines: expected Unresolved">Noise logs (should not resolve)</button>
+                <button onclick="emitLogs('pattern')" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700"
+                        title="Lines a log rule recognises: expected Resolved through pattern">Resolved by pattern</button>
+                <button onclick="emitLogs('model')" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                        title="Lines no rule recognises, read by the model: expected Resolved through model">Resolved by model</button>
+                <button onclick="emitLogs('all')" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">All three</button>
+            </div>
+            <pre id="logResult" class="hidden bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap"></pre>
+        </div>
     </div>
 
     <script>
@@ -96,6 +111,17 @@
                 try { msg = JSON.parse(text).message || msg; } catch (_) {}
                 showStatus(msg, !res.ok);
             } catch (e) { console.error(e); showStatus(`Cannot reach ${url} - is the service running? (${e.message})`); }
+        }
+
+        async function emitLogs(scenario) {
+            const out = document.getElementById('logResult');
+            try {
+                const res = await api(`/api/log-scenarios/${scenario}`, { method: 'POST' });
+                out.textContent = `POST /api/log-scenarios/${scenario}: ${res.lines} line(s) written\n\n` +
+                    res.emitted.map(l => `[${l.level}] ${l.logger}\n  ${l.message}`).join('\n\n');
+                out.className = 'bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap';
+                showStatus(`Wrote ${res.lines} "${scenario}" log line(s)`, false);
+            } catch (e) { console.error(e); showStatus(e.message); }
         }
 
         async function loadInventory() {
