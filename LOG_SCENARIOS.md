@@ -32,8 +32,8 @@ The source-path rule reads `CheckoutWorkflow.java:53`; the line maps to `Checkou
 Place or cancel an order directly in the **Order Service** card (the Order and Cancel buttons,
 `POST` / `DELETE /api/orders`). Each writes an `order-trace` line:
 ```
-... INFO ... order-trace : {order/OrderApplication:57} place-order order=12 outcome=ok
-... INFO ... order-trace : {order/OrderApplication:71} cancel-order order=12 outcome=ok
+... INFO ... order-trace : {order/OrderApplication:57} place-order order=12 units=1 outcome=ok
+... INFO ... order-trace : {order/OrderApplication:71} cancel-order order=12 units=1 outcome=ok
 ```
 `order/OrderApplication:57` has no file extension and is glued to `/`, so neither the rules nor the
 name scan see it. The model reads it as a FILE_LINE, which maps to `OrderApplication.create` / `delete`.
@@ -43,8 +43,9 @@ Two things about the model this scenario depends on, both measured:
   even then, the line number moves its confidence (`:57` reads at 0.93, `:62` not at all). That is why
   the checkout's own trace lines (scenario 3) are not read.
 - It runs once per Drain template, on the template's first line, and later lines reuse that reading.
-  Direct-order lines have one field fewer than checkout lines (no `step=`), so they form their own
-  template; with the same shape they would inherit the checkout template's empty reading.
+  Drain folds every 4-word INFO message from a Spring service into one catch-all template, which the
+  checkout trace lines (4 words) fall into and whose reading is empty. Direct-order lines carry a 5th
+  field, `units=`, so they start their own template, whose first line the model reads.
 
 ### 3. Standard logs, right structure, resolved by neither
 Every checkout writes two kinds:

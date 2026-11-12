@@ -54,7 +54,7 @@ public class OrderApplication {
     public ProductOrder create(@RequestBody ProductOrder order) {
         if (order.getQuantity() <= 0) order.setQuantity(1);
         ProductOrder saved = repository.save(order);
-        trace.order("place-order", saved.getId(), "ok");
+        trace.order("place-order", saved.getId(), saved.getQuantity(), "ok");
         return saved;
     }
 
@@ -63,12 +63,12 @@ public class OrderApplication {
         return repository.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
-    /** Cancels an order: it is removed. Cancelling an order that does not exist is a 404. */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (!repository.existsById(id)) return ResponseEntity.notFound().build();
-        repository.deleteById(id);
-        trace.order("cancel-order", id, "ok");
+        ProductOrder order = repository.findById(id).orElse(null);
+        if (order == null) return ResponseEntity.notFound().build();
+        repository.delete(order);
+        trace.order("cancel-order", id, order.getQuantity(), "ok");
         return ResponseEntity.noContent().build();
     }
 }
