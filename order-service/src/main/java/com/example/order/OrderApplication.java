@@ -5,6 +5,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -51,14 +52,23 @@ public class OrderApplication {
 
     @PostMapping
     public ProductOrder create(@RequestBody ProductOrder order) {
+        if (order.getQuantity() <= 0) order.setQuantity(1);
         ProductOrder saved = repository.save(order);
         trace.order("place-order", saved.getId(), "ok");
         return saved;
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductOrder> getOne(@PathVariable Long id) {
+        return repository.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Cancels an order: it is removed. Cancelling an order that does not exist is a 404. */
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        if (!repository.existsById(id)) return ResponseEntity.notFound().build();
         repository.deleteById(id);
         trace.order("cancel-order", id, "ok");
+        return ResponseEntity.noContent().build();
     }
 }

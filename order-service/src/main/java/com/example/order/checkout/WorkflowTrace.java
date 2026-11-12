@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
  * from basket to confirmation, whichever way it was placed:
  *
  *   {checkout/CheckoutWorkflow:62} step=reserve-stock checkout=42 outcome=ok
- *   {order/OrderApplication:57} step=place-order order=12 outcome=ok
+ *   {order/OrderApplication:57} place-order order=12 outcome=ok
  *
  * The tag in braces is where the step was recorded (the caller's package, class and
  * line), taken from the call stack rather than written by hand, so it cannot go stale
@@ -28,7 +28,7 @@ public class WorkflowTrace {
 
     /** A step of a single order placed or cancelled directly (POST / DELETE /api/orders). */
     public void order(String step, long order, String outcome) {
-        trace.info("{} step={} order={} outcome={}", caller(), step, order, outcome);
+        trace.info("{} {} order={} outcome={}", caller(), step, order, outcome);
     }
 
     /** Where the public method was called from: skips this method and the public one. */
