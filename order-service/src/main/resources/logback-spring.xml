@@ -2,12 +2,16 @@
 <!--
   SLF4J + Logback (bundled with spring-boot-starter-logging).
 
-  Same layout as Spring Boot's default console pattern, with the caller's source file,
-  line number and method added in front of the message:
-    2026-11-04T10:15:30.123Z ERROR 1 ... c.e.inventory.InventoryApplication : (InventoryApplication.java:130) handleOutOfMemory - Returning 500: ...
+  Application and framework code: Spring Boot's default console layout, with the
+  caller's source file, line number and method in front of the message:
+    2026-11-04T10:15:30.123Z  INFO 1 ... c.e.order.checkout.CheckoutWorkflow : (CheckoutWorkflow.java:80) run - ...
 
-  The "log-scenarios" logger keeps the plain default pattern: its lines are test input
-  for the log-resolution platform and must not name any code (see LogScenarioController).
+  Two business streams keep Spring's plain layout, without the caller column:
+    order-trace     one line per order or checkout step (WorkflowTrace). Its location tag is part
+                    of the message, {package/Class:line}, the step's own place in the
+                    workflow, so the caller column would only repeat WorkflowTrace.
+    order-audit     the checkout audit trail (CheckoutAudit): what was sold, to whom and
+                    for how much. Read by finance; it names no code on purpose.
 
   Note: file / line / method are computed from a stack trace for each log event, which
   costs some CPU. Fine for these services; avoid heavy logging on hot paths.
@@ -18,7 +22,6 @@
     <property name="LOCATED_CONSOLE_LOG_PATTERN"
               value="%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr(%applicationName[%15.15t]){faint} %clr(${LOG_CORRELATION_PATTERN:-}){faint}%clr(%-40.40logger{39}){cyan} %clr(:){faint} %clr(\(%file:%line\)){yellow} %method - %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
 
-    <!-- Every log line from application and framework code: includes file:line. -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${LOCATED_CONSOLE_LOG_PATTERN}</pattern>
@@ -26,7 +29,6 @@
         </encoder>
     </appender>
 
-    <!-- Synthetic scenario lines: Spring's default pattern, no code location. -->
     <appender name="CONSOLE_PLAIN" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
@@ -34,7 +36,11 @@
         </encoder>
     </appender>
 
-    <logger name="log-scenarios" level="INFO" additivity="false">
+    <logger name="order-trace" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE_PLAIN"/>
+    </logger>
+
+    <logger name="order-audit" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE_PLAIN"/>
     </logger>
 
