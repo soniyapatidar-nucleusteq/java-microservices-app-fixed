@@ -16,6 +16,8 @@ services:
       - "8082:8082"
     environment:
       - SERVER_PORT=8082
+      # Checkout reserves and releases stock through inventory-service's API.
+      - INVENTORY_BASE_URL=http://inventory-service:8081
     depends_on:
       - inventory-service
     networks:

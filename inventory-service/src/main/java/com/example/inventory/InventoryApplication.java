@@ -37,16 +37,16 @@ public class InventoryApplication {
         return args -> {
             if (repository.count() > 0) return;
             repository.saveAll(List.of(
-                new Item(null, "Laptop", 10),
-                new Item(null, "Smartphone", 25),
-                new Item(null, "Wireless Headphones", 50),
-                new Item(null, "Mechanical Keyboard", 30),
-                new Item(null, "Wireless Mouse", 75),
-                new Item(null, "27-inch Monitor", 15),
-                new Item(null, "USB-C Hub", 60),
-                new Item(null, "External SSD 1TB", 40),
-                new Item(null, "Webcam 1080p", 35),
-                new Item(null, "Laptop Stand", 45)
+                new Item(null, "Laptop", 10, 1200.00),
+                new Item(null, "Smartphone", 25, 799.99),
+                new Item(null, "Wireless Headphones", 50, 150.00),
+                new Item(null, "Mechanical Keyboard", 30, 89.50),
+                new Item(null, "Wireless Mouse", 75, 29.99),
+                new Item(null, "27-inch Monitor", 15, 249.00),
+                new Item(null, "USB-C Hub", 60, 45.00),
+                new Item(null, "External SSD 1TB", 40, 109.99),
+                new Item(null, "Webcam 1080p", 35, 59.90),
+                new Item(null, "Laptop Stand", 45, 34.75)
             ));
         };
     }
@@ -61,6 +61,11 @@ public class InventoryApplication {
             log.error("GET /api/items failed: {}", e.getMessage(), e);
             throw e;
         }
+    }
+
+    @GetMapping("/{id}")
+    public Item getOne(@PathVariable Long id) {
+        return repository.findById(id).orElseThrow(() -> new InventoryNotFoundException(id));
     }
 
     @PostMapping
@@ -82,6 +87,7 @@ public class InventoryApplication {
             Item item = repository.findById(id).orElseThrow(() -> new InventoryNotFoundException(id));
             item.setName(details.getName());
             item.setQuantity(details.getQuantity());
+            if (details.getUnitPrice() > 0) item.setUnitPrice(details.getUnitPrice());
             Item saved = repository.save(item);
             log.info("PUT /api/items/{} succeeded: name='{}' quantity={}", id, saved.getName(), saved.getQuantity());
             return saved;
@@ -104,31 +110,10 @@ public class InventoryApplication {
         }
     }
 
-    // Always throws InventoryNotFoundException, to exercise the 404 error path.
-    @GetMapping("/errors/not-found")
-    public Item throwInventoryNotFound(@RequestParam(defaultValue = "-1") Long id) {
-        log.info("GET /api/items/errors/not-found called with id={}, throwing InventoryNotFoundException", id);
-        throw new InventoryNotFoundException(id);
-    }
-
-    // Always throws OutOfMemoryError, to exercise the 500 error path.
-    // The error is simulated: no memory is actually allocated, so the service stays up.
-    @GetMapping("/errors/out-of-memory")
-    public Item throwOutOfMemory() {
-        log.info("GET /api/items/errors/out-of-memory called, throwing OutOfMemoryError");
-        throw new OutOfMemoryError("Out Of Memory Exception: simulated inventory service memory exhaustion");
-    }
-
     @ExceptionHandler(InventoryNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleInventoryNotFound(InventoryNotFoundException e) {
         log.error("Returning 404: {}", e.getMessage());
         return errorResponse(HttpStatus.NOT_FOUND, "InventoryNotFoundException", e.getMessage());
-    }
-
-    @ExceptionHandler(OutOfMemoryError.class)
-    public ResponseEntity<Map<String, Object>> handleOutOfMemory(OutOfMemoryError e) {
-        log.error("Returning 500: {}", e.getMessage(), e);
-        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "OutOfMemoryError", e.getMessage());
     }
 
     private ResponseEntity<Map<String, Object>> errorResponse(HttpStatus status, String error, String message) {

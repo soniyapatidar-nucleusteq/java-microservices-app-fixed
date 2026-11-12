@@ -9,13 +9,14 @@
     <div class="max-w-6xl mx-auto space-y-8">
         <h1 class="text-3xl font-bold text-gray-800">📦 Microservices Management Panel</h1>
         <div id="status" class="hidden p-3 rounded text-sm"></div>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="bg-white p-6 rounded-lg shadow">
                 <h2 class="text-xl font-semibold mb-4 text-blue-600">Inventory Service (Port 8081)</h2>
                 <div class="flex gap-2 mb-4">
                     <input id="itemName" placeholder="Item Name" class="border p-2 rounded w-full">
-                    <input id="itemQty" type="number" placeholder="Qty" class="border p-2 rounded w-24">
+                    <input id="itemQty" type="number" placeholder="Qty" class="border p-2 rounded w-20">
+                    <input id="itemPrice" type="number" step="0.01" placeholder="Price" class="border p-2 rounded w-24">
                     <button onclick="addItem()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Add</button>
                 </div>
                 <ul id="inventoryList" class="divide-y divide-gray-200"></ul>
@@ -28,33 +29,46 @@
                     <input id="orderPrice" type="number" step="0.01" placeholder="Price" class="border p-2 rounded w-24">
                     <button onclick="addOrder()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Order</button>
                 </div>
-                <ul id="orderList" class="divide-y divide-gray-200"></ul>
+                <ul id="orderList" class="divide-y divide-gray-200 max-h-96 overflow-y-auto"></ul>
             </div>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-xl font-semibold mb-4 text-red-600">Inventory Error Simulation</h2>
-            <div class="flex flex-wrap gap-2 mb-4">
-                <input id="notFoundId" type="number" placeholder="Item ID" class="border p-2 rounded w-28">
-                <button onclick="triggerError('not-found')" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">Throw Inventory Not Found</button>
-                <button onclick="triggerError('out-of-memory')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Throw Out Of Memory</button>
+            <h2 class="text-xl font-semibold mb-1 text-indigo-700">Checkout</h2>
+            <p class="text-sm text-gray-500 mb-4">Build a basket from the inventory. Checkout reserves the stock, prices the
+                basket (5% off a line of 5+ units, 10% off 10+; coupons WELCOME10, LOYAL15, FREESHIP; 8% tax) and records one order per line.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                <input id="customer" placeholder="Customer" class="border p-2 rounded">
+                <input id="coupon" placeholder="Coupon code (optional)" class="border p-2 rounded">
             </div>
-            <pre id="errorResult" class="hidden bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto"></pre>
+            <div class="flex gap-2 mb-3">
+                <select id="basketItem" class="border p-2 rounded w-full"></select>
+                <input id="basketQty" type="number" min="1" value="1" class="border p-2 rounded w-24">
+                <button onclick="addToBasket()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded hover:bg-indigo-200 whitespace-nowrap">Add to basket</button>
+            </div>
+            <ul id="basket" class="divide-y divide-gray-200 mb-3"></ul>
+            <button onclick="placeCheckout()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Place order</button>
+
+            <h3 class="font-semibold text-gray-700 mt-6 mb-2">Recent checkouts</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-left text-gray-500">
+                        <tr><th class="py-1">#</th><th>Customer</th><th>Status</th><th>Units</th><th>Coupon</th><th class="text-right">Total</th></tr>
+                    </thead>
+                    <tbody id="checkoutList" class="divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-xl font-semibold mb-1 text-purple-700">Log Resolution Scenarios</h2>
-            <p class="text-sm text-gray-500 mb-4">Writes log lines for the observability platform to resolve. See them in its Log Status tab.</p>
-            <div class="flex flex-wrap gap-2 mb-4">
-                <button onclick="emitLogs('noise')" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                        title="Junk, non-standard and unrelated lines: expected Unresolved">Noise logs (should not resolve)</button>
-                <button onclick="emitLogs('pattern')" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700"
-                        title="Lines a log rule recognises: expected Resolved through pattern">Resolved by pattern</button>
-                <button onclick="emitLogs('model')" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-                        title="Lines no rule recognises, read by the model: expected Resolved through model">Resolved by model</button>
-                <button onclick="emitLogs('all')" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">All three</button>
-            </div>
-            <pre id="logResult" class="hidden bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap"></pre>
+            <h2 class="text-xl font-semibold mb-1 text-amber-700">Supplier restock feed</h2>
+            <p class="text-sm text-gray-500 mb-4">Paste the supplier's feed, one product per row: <code>name;quantity;unitPrice</code>.
+                Delivered units are added to the shelf and the supplier's price becomes the item's price; new products are added.</p>
+            <input id="supplier" placeholder="Supplier (e.g. acme-wholesale)" class="border p-2 rounded w-full md:w-1/3 mb-2">
+            <textarea id="feed" rows="6" class="border p-2 rounded w-full font-mono text-sm mb-2"
+                      placeholder="name;quantity;unitPrice&#10;Wireless Mouse;20;27.50&#10;Desk Lamp;12;18.90"></textarea>
+            <button onclick="uploadFeed()" class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700">Import feed</button>
+            <pre id="feedResult" class="hidden mt-3 bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap"></pre>
         </div>
     </div>
 
@@ -63,19 +77,27 @@
         // Order API lives on port 8082 of whatever host the page was loaded from,
         // so this works on localhost, a LAN IP, a VM, or a remote server.
         const INV_API = '/api/items';
-        const ORD_API = `${window.location.protocol}//${window.location.hostname}:8082/api/orders`;
+        const ORD_BASE = `${window.location.protocol}//${window.location.hostname}:8082`;
+        const ORD_API = `${ORD_BASE}/api/orders`;
+        const CHECKOUT_API = `${ORD_BASE}/api/checkout`;
+        const FEED_API = '/api/supplier-feed';
+
+        let items = [];
+        const basket = [];
 
         function showStatus(msg, isError = true) {
             const el = document.getElementById('status');
             el.textContent = msg;
             el.className = 'p-3 rounded text-sm ' + (isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
             clearTimeout(showStatus._t);
-            showStatus._t = setTimeout(() => el.className = 'hidden', 5000);
+            showStatus._t = setTimeout(() => el.className = 'hidden', 6000);
         }
 
         function esc(v) {
             return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
+
+        function money(v) { return '$' + Number(v || 0).toFixed(2); }
 
         async function api(url, options = {}) {
             let res;
@@ -93,71 +115,132 @@
             return text ? JSON.parse(text) : null;
         }
 
-        async function triggerError(type) {
-            const out = document.getElementById('errorResult');
-            let url = `${INV_API}/errors/${type}`;
-            if (type === 'not-found') {
-                const id = document.getElementById('notFoundId').value;
-                if (id !== '') url += `?id=${encodeURIComponent(id)}`;
-            }
-            try {
-                const res = await fetch(url);
-                const text = await res.text();
-                let body;
-                try { body = JSON.stringify(JSON.parse(text), null, 2); } catch (_) { body = text; }
-                out.textContent = `GET ${url}\nHTTP ${res.status}\n\n${body}`;
-                out.className = 'bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto';
-                let msg = `HTTP ${res.status}`;
-                try { msg = JSON.parse(text).message || msg; } catch (_) {}
-                showStatus(msg, !res.ok);
-            } catch (e) { console.error(e); showStatus(`Cannot reach ${url} - is the service running? (${e.message})`); }
-        }
-
-        async function emitLogs(scenario) {
-            const out = document.getElementById('logResult');
-            try {
-                const res = await api(`/api/log-scenarios/${scenario}`, { method: 'POST' });
-                out.textContent = `POST /api/log-scenarios/${scenario}: ${res.lines} line(s) written\n\n` +
-                    res.emitted.map(l => `[${l.level}] ${l.logger}\n  ${l.message}`).join('\n\n');
-                out.className = 'bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap';
-                showStatus(`Wrote ${res.lines} "${scenario}" log line(s)`, false);
-            } catch (e) { console.error(e); showStatus(e.message); }
-        }
-
         async function loadInventory() {
             try {
-                const items = await api(INV_API);
+                items = await api(INV_API);
                 document.getElementById('inventoryList').innerHTML = items.map(i => `
                     <li class="py-2 flex justify-between items-center">
-                        <span><strong>${esc(i.name)}</strong> (${esc(i.quantity)} units)</span>
+                        <span><strong>${esc(i.name)}</strong> (${esc(i.quantity)} units, ${money(i.unitPrice)})</span>
                         <button onclick="deleteItem(${Number(i.id)})" class="text-red-500 hover:underline text-sm">Delete</button>
                     </li>`).join('');
+                const select = document.getElementById('basketItem');
+                const chosen = select.value;
+                select.innerHTML = items.map(i =>
+                    `<option value="${Number(i.id)}">${esc(i.name)} - ${money(i.unitPrice)} (${esc(i.quantity)} in stock)</option>`).join('');
+                if (chosen) select.value = chosen;
             } catch (e) { console.error(e); showStatus(e.message); }
         }
 
         async function loadOrders() {
             try {
                 const orders = await api(ORD_API);
-                document.getElementById('orderList').innerHTML = orders.map(o => `
+                document.getElementById('orderList').innerHTML = orders.slice().reverse().map(o => `
                     <li class="py-2 flex justify-between items-center">
-                        <span>Order #${Number(o.id)}: <strong>${esc(o.productName)}</strong> - $${Number(o.price).toFixed(2)}</span>
+                        <span>Order #${Number(o.id)}: <strong>${esc(o.productName)}</strong>
+                            ${Number(o.quantity) > 1 ? 'x' + Number(o.quantity) + ' ' : ''}- ${money(o.price)}
+                            ${o.checkoutId ? `<span class="text-gray-400 text-xs">(checkout #${Number(o.checkoutId)})</span>` : ''}</span>
                         <button onclick="deleteOrder(${Number(o.id)})" class="text-red-500 hover:underline text-sm">Cancel</button>
                     </li>`).join('');
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        async function loadCheckouts() {
+            try {
+                const rows = await api(CHECKOUT_API);
+                const colour = { CONFIRMED: 'text-green-700', FAILED: 'text-red-600', PENDING: 'text-gray-500' };
+                document.getElementById('checkoutList').innerHTML = rows.map(c => `
+                    <tr>
+                        <td class="py-1">${Number(c.id)}</td>
+                        <td>${esc(c.customer)}</td>
+                        <td class="${colour[c.status] || ''}">${esc(c.status)}${c.failureReason ? ' - ' + esc(c.failureReason) : ''}</td>
+                        <td>${Number(c.units)}</td>
+                        <td>${c.couponCode ? esc(c.couponCode) : ''}</td>
+                        <td class="text-right">${c.status === 'CONFIRMED' ? money(c.total) : ''}</td>
+                    </tr>`).join('');
+            } catch (e) { console.error(e); showStatus(e.message); }
+        }
+
+        function renderBasket() {
+            document.getElementById('basket').innerHTML = basket.map((line, i) => {
+                const item = items.find(x => x.id === line.itemId);
+                return `<li class="py-2 flex justify-between items-center text-sm">
+                    <span>${line.quantity} x <strong>${esc(item ? item.name : 'item ' + line.itemId)}</strong></span>
+                    <button onclick="removeFromBasket(${i})" class="text-red-500 hover:underline">Remove</button>
+                </li>`;
+            }).join('') || '<li class="py-2 text-sm text-gray-400">The basket is empty.</li>';
+        }
+
+        function addToBasket() {
+            const itemId = Number(document.getElementById('basketItem').value);
+            const quantity = parseInt(document.getElementById('basketQty').value, 10);
+            if (!itemId || Number.isNaN(quantity) || quantity < 1) {
+                showStatus('Pick an item and a quantity of at least 1.');
+                return;
+            }
+            const existing = basket.find(l => l.itemId === itemId);
+            if (existing) existing.quantity += quantity; else basket.push({ itemId, quantity });
+            renderBasket();
+        }
+
+        function removeFromBasket(i) {
+            basket.splice(i, 1);
+            renderBasket();
+        }
+
+        async function placeCheckout() {
+            const customer = document.getElementById('customer').value.trim();
+            const couponCode = document.getElementById('coupon').value.trim();
+            if (!customer || basket.length === 0) {
+                showStatus('Enter a customer and add at least one item to the basket.');
+                return;
+            }
+            try {
+                const c = await api(CHECKOUT_API, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ customer, couponCode: couponCode || null, lines: basket })
+                });
+                showStatus(`Checkout #${c.id} confirmed: ${money(c.total)} (subtotal ${money(c.subtotal)}, ` +
+                           `discounts ${money(c.volumeDiscount + c.couponDiscount)}, tax ${money(c.tax)})`, false);
+                basket.length = 0;
+                renderBasket();
+            } catch (e) { console.error(e); showStatus(e.message); }
+            await Promise.all([loadInventory(), loadOrders(), loadCheckouts()]);
+        }
+
+        async function uploadFeed() {
+            const supplier = document.getElementById('supplier').value.trim();
+            const feed = document.getElementById('feed').value;
+            if (!supplier || !feed.trim()) {
+                showStatus('Enter the supplier and paste its feed.');
+                return;
+            }
+            const out = document.getElementById('feedResult');
+            try {
+                const r = await api(`${FEED_API}?supplier=${encodeURIComponent(supplier)}`, {
+                    method: 'POST', headers: {'Content-Type': 'text/plain'}, body: feed
+                });
+                out.textContent = `${r.supplier}: ${r.imported} of ${r.rows} rows imported (${r.created} new items)` +
+                    (r.rejected.length ? `\n\nRejected rows:\n${r.rejected.join('\n')}` : '');
+                out.className = 'mt-3 bg-gray-900 text-gray-100 p-4 rounded text-sm overflow-x-auto whitespace-pre-wrap';
+                showStatus(`Imported ${r.imported} of ${r.rows} rows from ${r.supplier}`, r.rejected.length > 0);
+                await loadInventory();
             } catch (e) { console.error(e); showStatus(e.message); }
         }
 
         async function addItem() {
             const nameEl = document.getElementById('itemName');
             const qtyEl = document.getElementById('itemQty');
+            const priceEl = document.getElementById('itemPrice');
             const name = nameEl.value.trim();
             const quantity = parseInt(qtyEl.value, 10);
-            if (!name || Number.isNaN(quantity) || quantity < 0) {
-                showStatus('Enter an item name and a quantity of 0 or more.');
+            const unitPrice = priceEl.value === '' ? 0 : parseFloat(priceEl.value);
+            if (!name || Number.isNaN(quantity) || quantity < 0 || Number.isNaN(unitPrice) || unitPrice < 0) {
+                showStatus('Enter an item name, a quantity of 0 or more and a price of 0 or more.');
                 return;
             }
             try {
-                await api(INV_API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, quantity }) });
-                nameEl.value = ''; qtyEl.value = '';
+                await api(INV_API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, quantity, unitPrice }) });
+                nameEl.value = ''; qtyEl.value = ''; priceEl.value = '';
                 showStatus(`Added "${name}"`, false);
                 await loadInventory();
             } catch (e) { console.error(e); showStatus(e.message); }
@@ -190,8 +273,9 @@
             catch (e) { console.error(e); showStatus(e.message); }
         }
 
-        loadInventory();
+        loadInventory().then(renderBasket);
         loadOrders();
+        loadCheckouts();
     </script>
 </body>
 </html>
