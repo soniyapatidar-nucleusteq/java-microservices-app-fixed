@@ -1,5 +1,6 @@
 package com.example.order;
 
+import com.example.order.checkout.WorkflowTrace;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -15,9 +16,11 @@ import java.util.List;
 public class OrderApplication {
 
     private final OrderRepository repository;
+    private final WorkflowTrace trace;
 
-    public OrderApplication(OrderRepository repository) {
+    public OrderApplication(OrderRepository repository, WorkflowTrace trace) {
         this.repository = repository;
+        this.trace = trace;
     }
 
     public static void main(String[] args) {
@@ -47,8 +50,15 @@ public class OrderApplication {
     public List<ProductOrder> getAll() { return repository.findAll(); }
 
     @PostMapping
-    public ProductOrder create(@RequestBody ProductOrder order) { return repository.save(order); }
+    public ProductOrder create(@RequestBody ProductOrder order) {
+        ProductOrder saved = repository.save(order);
+        trace.order("place-order", saved.getId(), "ok");
+        return saved;
+    }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) { repository.deleteById(id); }
+    public void delete(@PathVariable Long id) {
+        repository.deleteById(id);
+        trace.order("cancel-order", id, "ok");
+    }
 }

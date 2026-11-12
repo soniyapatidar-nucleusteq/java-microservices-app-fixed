@@ -12,7 +12,7 @@ end of this file and are not marked in the code.
 | Stream | Who writes it | Layout | What the platform can do with it |
 |---|---|---|---|
 | Class loggers (`c.e.order.checkout.CheckoutWorkflow`, `StockService`, ...) | application code | standard, with `(File.java:line) method` | a pattern finds the file and line |
-| `checkout-trace` | `WorkflowTrace`, one line per checkout step | standard, tagged `{checkout/CheckoutWorkflow:62}` | no rule reads the tag; the model does |
+| `order-trace` | `WorkflowTrace`, one line per order or checkout step | standard, tagged `{order/OrderApplication:57}` | no rule reads the tag; the model reads some |
 | `order-audit` | `CheckoutAudit`, the finance audit trail | standard, names no code | nothing to map |
 | supplier reject report | `SupplierFeedImporter`, plain `System.out` | unstructured: no time, no level | nothing to map |
 
@@ -21,7 +21,7 @@ end of this file and are not marked in the code.
 Open the platform afterwards: Java Microservice project, Observability, **Log Status** tab (allow about 30 s).
 
 ### 1. Standard logs resolved through pattern / rule
-Place any checkout, e.g. customer `acme-corp`, coupon `WELCOME10`, 2 x Laptop.
+Place any checkout in the **Checkout** card, e.g. customer `acme-corp`, coupon `WELCOME10`, 2 x Laptop.
 ```
 ... INFO ... c.e.order.checkout.CheckoutWorkflow : (CheckoutWorkflow.java:53) run - Checkout 1 started for acme-corp: 1 lines, 2 units
 ... INFO ... com.example.inventory.StockService  : (StockService.java:37) reserve - Reserved 2 x 'Laptop' for checkout 1, 8 left
@@ -29,22 +29,34 @@ Place any checkout, e.g. customer `acme-corp`, coupon `WELCOME10`, 2 x Laptop.
 The source-path rule reads `CheckoutWorkflow.java:53`; the line maps to `CheckoutWorkflow.run`.
 
 ### 2. Standard logs resolved through the model
-The same checkout writes one `checkout-trace` line per step:
+Place or cancel an order directly in the **Order Service** card (the Order and Cancel buttons,
+`POST` / `DELETE /api/orders`). Each writes an `order-trace` line:
 ```
-... INFO ... checkout-trace : {checkout/CheckoutWorkflow:62} step=reserve-stock checkout=1 outcome=ok
+... INFO ... order-trace : {order/OrderApplication:57} step=place-order order=12 outcome=ok
+... INFO ... order-trace : {order/OrderApplication:64} step=cancel-order order=12 outcome=ok
 ```
-`checkout/CheckoutWorkflow:62` has no file extension and is glued to `/`, so neither the rules nor the
-name scan see it. The model reads it as a FILE_LINE, which maps to the line in `CheckoutWorkflow.run`.
+`order/OrderApplication:57` has no file extension and is glued to `/`, so neither the rules nor the
+name scan see it. The model reads it as a FILE_LINE, which maps to `OrderApplication.create` / `delete`.
 
 ### 3. Standard logs, right structure, resolved by neither
-Also from every checkout, the `order-audit` trail:
+Every checkout writes two kinds:
+
+The `order-trace` steps of a checkout:
+```
+... INFO ... order-trace : {checkout/CheckoutWorkflow:62} step=reserve-stock checkout=1 outcome=ok
+```
+Same layout and same tag shape as scenario 2, and it names a real class and line, yet nothing resolves
+it: no rule reads the tag, and the model does not recognise `CheckoutWorkflow` (it only labels the few
+class names it saw in training, such as `OrderApplication`). This is a gap in the model, not in the line.
+
+The `order-audit` trail:
 ```
 ... INFO ... order-audit : checkout 1 confirmed for customer acme-corp: 2 units, charged 2332.80 USD
 ... WARN ... order-audit : checkout 2 invoice check failed: charged 184.65 USD, invoice says 194.37 USD
 ```
-Timestamp, level, thread and logger are all there, but nothing in the line names code, and the model
-finds nothing in it. The WARN is a real symptom of defect B (below), which the platform cannot tie to code.
-To get it: basket of 3 x Wireless Mouse + 2 x USB-C Hub, no coupon.
+Timestamp, level, thread and logger are all there, but nothing in the line names code. The WARN is a
+real symptom of defect B (below), which the platform cannot tie to code. To get it: basket of
+3 x Wireless Mouse + 2 x USB-C Hub, no coupon.
 
 ### 4. Unstructured logs resolved by neither
 Import a supplier feed whose prices use a decimal comma (supplier `acme-wholesale`):

@@ -7,7 +7,7 @@
     2026-11-04T10:15:30.123Z  INFO 1 ... c.e.order.checkout.CheckoutWorkflow : (CheckoutWorkflow.java:80) run - ...
 
   Two business streams keep Spring's plain layout, without the caller column:
-    checkout-trace  one line per checkout step (WorkflowTrace). Its location tag is part
+    order-trace     one line per order or checkout step (WorkflowTrace). Its location tag is part
                     of the message, {package/Class:line}, the step's own place in the
                     workflow, so the caller column would only repeat WorkflowTrace.
     order-audit     the checkout audit trail (CheckoutAudit): what was sold, to whom and
@@ -36,7 +36,7 @@
         </encoder>
     </appender>
 
-    <logger name="checkout-trace" level="INFO" additivity="false">
+    <logger name="order-trace" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE_PLAIN"/>
     </logger>
 
