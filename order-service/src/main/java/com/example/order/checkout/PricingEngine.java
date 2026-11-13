@@ -22,6 +22,9 @@ public class PricingEngine {
     static final double TAX_RATE = 0.08;
     static final Map<String, Double> PERCENT_OFF = Map.of("WELCOME10", 0.10, "LOYAL15", 0.15);
     static final Map<String, Double> AMOUNT_OFF = Map.of("FREESHIP", 5.00);
+    /** Volume discount per tier of TIER_SIZE units: 0-4 units, 5-9, 10 or more (the last tier). */
+    static final List<Double> VOLUME_TIERS = List.of(0.0, 0.05, 0.10);
+    static final int TIER_SIZE = 5;
 
     /** One basket line with its unit price, as inventory-service sold it. */
     public record PricedLine(long itemId, String name, int quantity, double unitPrice) {
@@ -51,9 +54,8 @@ public class PricingEngine {
     }
 
     static double volumeRate(int units) {
-        if (units >= 10) return 0.10;
-        if (units >= 5) return 0.05;
-        return 0.0;
+        int tier = Math.min(units / TIER_SIZE, VOLUME_TIERS.size());
+        return VOLUME_TIERS.get(tier);
     }
 
     double couponDiscount(String couponCode, double amount) {

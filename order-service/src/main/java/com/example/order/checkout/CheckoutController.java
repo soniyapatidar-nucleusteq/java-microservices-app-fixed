@@ -1,5 +1,8 @@
 package com.example.order.checkout;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,12 +16,16 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class CheckoutController {
 
+    private static final Logger log = LoggerFactory.getLogger(CheckoutController.class);
+
     private final CheckoutWorkflow workflow;
     private final CheckoutRepository checkouts;
+    private final CustomerSummary summaries;
 
-    public CheckoutController(CheckoutWorkflow workflow, CheckoutRepository checkouts) {
+    public CheckoutController(CheckoutWorkflow workflow, CheckoutRepository checkouts, CustomerSummary summaries) {
         this.workflow = workflow;
         this.checkouts = checkouts;
+        this.summaries = summaries;
     }
 
     @PostMapping
@@ -29,6 +36,11 @@ public class CheckoutController {
     @GetMapping
     public List<Checkout> recent() {
         return workflow.recent();
+    }
+
+    @GetMapping("/summary")
+    public CustomerSummary.Summary summary(@RequestParam String customer) {
+        return summaries.of(customer);
     }
 
     @GetMapping("/{id}")
@@ -52,8 +64,9 @@ public class CheckoutController {
     }
 
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, Object>> failed(RuntimeException e) {
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "The checkout could not be completed");
+    public ResponseEntity<Map<String, Object>> failed(RuntimeException e, HttpServletRequest request) {
+        log.error("{} {} failed", request.getMethod(), request.getRequestURI(), e);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed");
     }
 
     private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {

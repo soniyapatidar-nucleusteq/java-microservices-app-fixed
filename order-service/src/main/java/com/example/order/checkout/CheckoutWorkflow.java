@@ -96,7 +96,7 @@ public class CheckoutWorkflow {
             throw e;
         } catch (RuntimeException e) {
             trace.step(step, id, "failed");
-            log.error("Checkout {} failed at {}", id, step, e);
+            log.warn("Checkout {} failed at {}: {}", id, step, e.toString());
             fail(checkout, held, "internal error");
             throw e;
         }

@@ -58,6 +58,13 @@
                     <tbody id="checkoutList" class="divide-y divide-gray-200"></tbody>
                 </table>
             </div>
+
+            <h3 class="font-semibold text-gray-700 mt-6 mb-2">Customer summary</h3>
+            <div class="flex gap-2 mb-2">
+                <input id="summaryCustomer" placeholder="Customer" class="border p-2 rounded w-full md:w-1/3">
+                <button onclick="showSummary()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded hover:bg-indigo-200">Show summary</button>
+            </div>
+            <p id="summaryResult" class="text-sm text-gray-700"></p>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow">
@@ -205,6 +212,20 @@
                 renderBasket();
             } catch (e) { console.error(e); showStatus(e.message); }
             await Promise.all([loadInventory(), loadOrders(), loadCheckouts()]);
+        }
+
+        async function showSummary() {
+            const customer = document.getElementById('summaryCustomer').value.trim();
+            const out = document.getElementById('summaryResult');
+            if (!customer) {
+                showStatus('Enter a customer.');
+                return;
+            }
+            try {
+                const s = await api(`${CHECKOUT_API}/summary?customer=${encodeURIComponent(customer)}`);
+                out.textContent = `${s.customer}: ${s.checkouts} checkouts, ${s.confirmed} confirmed, ${s.units} units, ` +
+                    `${money(s.spent)} spent - average basket ${s.averageUnits} units, ${money(s.averageBasket)}`;
+            } catch (e) { console.error(e); out.textContent = ''; showStatus(e.message); }
         }
 
         async function uploadFeed() {
