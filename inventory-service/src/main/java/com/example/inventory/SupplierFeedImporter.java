@@ -51,7 +51,7 @@ public class SupplierFeedImporter {
         String[] lines = feed == null ? new String[0] : feed.split("\\R");
         String[] columns = DEFAULT_COLUMNS;
         int first = 0;
-        if (lines.length > 0 && lines[0].trim().toLowerCase().startsWith("name" + SEPARATOR)) {
+        if (lines.length > 0 && columnOf(lines[0].trim().split(SEPARATOR, -1), "name") >= 0) {
             columns = lines[0].trim().split(SEPARATOR, -1);
             first = 1;
         }

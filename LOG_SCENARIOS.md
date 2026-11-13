@@ -81,18 +81,29 @@ feed acme-wholesale row 3 rejected: Desk Lamp;12;18,90
 feed acme-wholesale: 4 rows read, 2 imported, 2 rejected
 ```
 
-### 5. Incidents
-Each of these is an ERROR line, so the platform opens an Incident (and a ticket):
+### 5. Incidents caused by code errors
+Each is a bug in our own code, reached through normal use. The platform opens an Incident (and a ticket)
+and links it (CAUSED_BY) to the method that threw, read from the innermost frame of our code in the
+stack trace, not to the code that caught and logged the error.
 
-| Do this | Error | Maps to |
+| Do this | Exception | Incident's root cause |
 |---|---|---|
-| Checkout with coupon `SUMMER25` (any code not in the price list) | `NullPointerException` with stack trace | `PricingEngine.couponDiscount` (defect A) |
-| Load the dashboard, run `docker compose stop inventory-service`, then place a checkout from the open page | `InventoryUnavailableException: Retries exhausted after 3 attempts ...` with the connection error as cause | `InventoryClient` / `CheckoutWorkflow.run` |
+| **Checkout** with coupon `SUMMER25` (any code not in the price list) | `NullPointerException` | `PricingEngine.couponDiscount` (defect A) |
+| **Checkout** a basket of 15 units or more, e.g. 10 x Wireless Mouse + 6 x USB-C Hub | `ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3` | `PricingEngine.volumeRate` (defect D) |
+| **Supplier restock feed** whose header calls the price column `price`: `name;quantity;price` then `Wireless Mouse;20;27.50` | `ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 3` | `SupplierFeedImporter.importFeed` (defect E) |
+| **Customer summary** for a customer with no confirmed checkout (e.g. `initech` after the coupon failure, or any new name) | `ArithmeticException: / by zero` | `CustomerSummary.of` (defect F) |
 
-Restart inventory afterwards with `docker compose start inventory-service`.
+In each case the first ERROR line is logged by the code that caught the error
+(`CheckoutController.failed`, or Spring's own dispatcher), and the trace follows it. The Incident must
+point past that line to where the trace says the error was raised.
 
-For contrast, a checkout for more units than are in stock (e.g. 99 x 27-inch Monitor) is a WARN, a
-handled business outcome: it resolves through pattern but opens no Incident.
+For contrast, two errors that are not code faults:
+- **Infrastructure:** load the dashboard, run `docker compose stop inventory-service`, then place a
+  checkout from the open page. `InventoryUnavailableException` / `UnknownHostException`: the Incident's
+  cause is the `inventory-service` service, and its trace is where it surfaced. Restart with
+  `docker compose start inventory-service`.
+- **Handled business outcome:** a checkout for more units than are in stock (e.g. 99 x 27-inch Monitor)
+  is a WARN: it resolves through pattern but opens no Incident.
 
 ## Known defects (left in on purpose)
 
@@ -101,3 +112,6 @@ handled business outcome: it resolves through pattern but opens no Incident.
 | A | `PricingEngine.couponDiscount` | An unknown coupon code is not rejected: `PERCENT_OFF.get(code)` returns null and unboxing it throws. The customer gets a 500 instead of "coupon not accepted". | ERROR + stack trace, Incident (scenario 5) |
 | B | `PricingEngine.quote` | The volume discount tier is chosen from the units in the whole basket, but the price list gives it per basket line. 3 + 2 units get 5% off that they should not. | `order-audit` "invoice check failed" WARN (scenario 3) |
 | C | `SupplierFeedImporter.importFeed` | Prices are parsed with `Double.parseDouble`, so a decimal comma (`18,90`) is rejected and the delivery never reaches the shelf. | the reject report on stdout (scenario 4) |
+| D | `PricingEngine.volumeRate` | The tier index is capped at `VOLUME_TIERS.size()` instead of `size() - 1`, so 15 or more units asks for tier 3 of a 3-tier list. | Incident (scenario 5) |
+| E | `SupplierFeedImporter.importFeed` | Columns are found by their header name, and a missing one (`price` instead of `unitPrice`) is not checked: its index is -1. | Incident (scenario 5) |
+| F | `CustomerSummary.of` | The average basket divides by the number of confirmed checkouts, which is 0 for a customer who has none. | Incident (scenario 5) |
