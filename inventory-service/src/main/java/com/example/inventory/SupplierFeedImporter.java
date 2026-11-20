@@ -27,17 +27,20 @@ public class SupplierFeedImporter {
     private static final String SEPARATOR = ";";
     /** The columns of a feed sent without a header row. */
     private static final String[] DEFAULT_COLUMNS = {"name", "quantity", "unitPrice"};
+    private static final int REORDER_AT = 5;
 
     private final ItemRepository repository;
+    private final StockMovementRepository ledger;
     private final PrintStream rejectReport;
 
     @Autowired
-    public SupplierFeedImporter(ItemRepository repository) {
-        this(repository, System.out);
+    public SupplierFeedImporter(ItemRepository repository, StockMovementRepository ledger) {
+        this(repository, ledger, System.out);
     }
 
-    SupplierFeedImporter(ItemRepository repository, PrintStream rejectReport) {
+    SupplierFeedImporter(ItemRepository repository, StockMovementRepository ledger, PrintStream rejectReport) {
         this.repository = repository;
+        this.ledger = ledger;
         this.rejectReport = rejectReport;
     }
 
@@ -90,7 +93,11 @@ public class SupplierFeedImporter {
             }
             item.setQuantity(item.getQuantity() + units);
             item.setUnitPrice(price);
-            repository.save(item);
+            Item saved = repository.save(item);
+            ledger.save(new StockMovement(saved.getId(), units, "delivered by " + source));
+            if (saved.getQuantity() < REORDER_AT) {
+                lowStock(saved);
+            }
             imported++;
         }
         if (!rejected.isEmpty()) {
@@ -100,6 +107,12 @@ public class SupplierFeedImporter {
         log.info("Supplier feed from {} applied: {} of {} rows imported ({} new items), {} rejected",
             source, imported, rows, created, rejected.size());
         return new FeedResult(source, rows, imported, created, rejected);
+    }
+
+    /** Still short after the delivery: goes on the buyers' reorder list (the console). */
+    private static void lowStock(Item item) {
+        System.out.println("low stock: " + item.getName() + " has " + item.getQuantity()
+            + " left (reorder at " + REORDER_AT + ")");
     }
 
     /** Where a column is in the feed's header. */

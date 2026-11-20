@@ -33,9 +33,11 @@ public class CheckoutWorkflow {
     private final InvoiceCheck invoiceCheck;
     private final WorkflowTrace trace;
     private final CheckoutAudit audit;
+    private final PackingSlipPrinter slips;
 
     public CheckoutWorkflow(CheckoutRepository checkouts, OrderRepository orders, InventoryClient inventory,
-                            PricingEngine pricing, InvoiceCheck invoiceCheck, WorkflowTrace trace, CheckoutAudit audit) {
+                            PricingEngine pricing, InvoiceCheck invoiceCheck, WorkflowTrace trace, CheckoutAudit audit,
+                            PackingSlipPrinter slips) {
         this.checkouts = checkouts;
         this.orders = orders;
         this.inventory = inventory;
@@ -43,6 +45,7 @@ public class CheckoutWorkflow {
         this.invoiceCheck = invoiceCheck;
         this.trace = trace;
         this.audit = audit;
+        this.slips = slips;
     }
 
     public Checkout run(CheckoutRequest request) {
@@ -66,8 +69,10 @@ public class CheckoutWorkflow {
             trace.step(step, id, "ok");
 
             step = "record-orders";
+            List<ProductOrder> recorded = new ArrayList<>();
             for (PricingEngine.PricedLine line : held) {
-                orders.save(new ProductOrder(line.name(), PricingEngine.cents(line.amount()), line.quantity(), id));
+                recorded.add(orders.save(new ProductOrder(line.name(), PricingEngine.cents(line.amount()), line.quantity(),
+                    id, line.itemId())));
             }
             trace.step(step, id, "ok");
 
@@ -83,6 +88,7 @@ public class CheckoutWorkflow {
             if (!invoiceCheck.matches(checkout.getTotal(), invoice)) {
                 audit.invoiceMismatch(checkout, invoice);
             }
+            slips.print(id, checkout.getCustomer(), recorded);
             return checkout;
         } catch (OutOfStockException | InvalidCheckoutException e) {
             trace.step(step, id, "failed");
@@ -100,6 +106,16 @@ public class CheckoutWorkflow {
             fail(checkout, held, "internal error");
             throw e;
         }
+    }
+
+    /** Prints a confirmed checkout's packing slip again (the dock lost it, or it was held). */
+    public boolean reprintSlip(long id) {
+        Checkout checkout = checkouts.findById(id)
+            .orElseThrow(() -> new InvalidCheckoutException("There is no checkout " + id));
+        if (checkout.getStatus() != Checkout.Status.CONFIRMED) {
+            throw new InvalidCheckoutException("Checkout " + id + " was not confirmed, it has no packing slip");
+        }
+        return slips.print(id, checkout.getCustomer(), orders.findByCheckoutIdOrderById(id));
     }
 
     public List<Checkout> recent() {

@@ -23,9 +23,11 @@ public class InventoryApplication {
     private static final Logger log = LoggerFactory.getLogger(InventoryApplication.class);
 
     private final ItemRepository repository;
+    private final StockMovementRepository ledger;
 
-    public InventoryApplication(ItemRepository repository) {
+    public InventoryApplication(ItemRepository repository, StockMovementRepository ledger) {
         this.repository = repository;
+        this.ledger = ledger;
     }
 
     public static void main(String[] args) {
@@ -36,18 +38,19 @@ public class InventoryApplication {
     CommandLineRunner initDatabase() {
         return args -> {
             if (repository.count() > 0) return;
-            repository.saveAll(List.of(
-                new Item(null, "Laptop", 10, 1200.00),
-                new Item(null, "Smartphone", 25, 799.99),
-                new Item(null, "Wireless Headphones", 50, 150.00),
-                new Item(null, "Mechanical Keyboard", 30, 89.50),
-                new Item(null, "Wireless Mouse", 75, 29.99),
-                new Item(null, "27-inch Monitor", 15, 249.00),
-                new Item(null, "USB-C Hub", 60, 45.00),
-                new Item(null, "External SSD 1TB", 40, 109.99),
-                new Item(null, "Webcam 1080p", 35, 59.90),
-                new Item(null, "Laptop Stand", 45, 34.75)
+            List<Item> seeded = repository.saveAll(List.of(
+                new Item(null, "Laptop", 10, 1200.00, "A-01"),
+                new Item(null, "Smartphone", 25, 799.99, "A-02"),
+                new Item(null, "Wireless Headphones", 50, 150.00, "A-03"),
+                new Item(null, "Mechanical Keyboard", 30, 89.50, "B-01"),
+                new Item(null, "Wireless Mouse", 75, 29.99, "B-02"),
+                new Item(null, "27-inch Monitor", 15, 249.00, "B-03"),
+                new Item(null, "USB-C Hub", 60, 45.00, "C-01"),
+                new Item(null, "External SSD 1TB", 40, 109.99, "C-02"),
+                new Item(null, "Webcam 1080p", 35, 59.90, "C-03"),
+                new Item(null, "Laptop Stand", 45, 34.75, "C-04")
             ));
+            seeded.forEach(item -> ledger.save(new StockMovement(item.getId(), item.getQuantity(), "opening stock")));
         };
     }
 
@@ -72,6 +75,7 @@ public class InventoryApplication {
     public Item create(@RequestBody Item item) {
         try {
             Item saved = repository.save(item);
+            ledger.save(new StockMovement(saved.getId(), saved.getQuantity(), "opening stock"));
             log.info("POST /api/items succeeded: created item id={} name='{}' quantity={}",
                 saved.getId(), saved.getName(), saved.getQuantity());
             return saved;

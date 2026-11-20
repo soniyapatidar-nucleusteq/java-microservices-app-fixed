@@ -1,4 +1,20 @@
 services:
+  # The shop's one database, shared by both services (each keeps its own tables).
+  # No volume: `docker compose down` starts it empty again.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=shop
+      - POSTGRES_USER=shop
+      - POSTGRES_PASSWORD=shop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - app-network
+
   inventory-service:
     build:
       context: ./inventory-service
@@ -6,6 +22,9 @@ services:
       - "8081:8081"
     environment:
       - SERVER_PORT=8081
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -19,7 +38,10 @@ services:
       # Checkout reserves and releases stock through inventory-service's API.
       - INVENTORY_BASE_URL=http://inventory-service:8081
     depends_on:
-      - inventory-service
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
     networks:
       - app-network
     volumes:

@@ -43,6 +43,11 @@ public class CheckoutController {
         return summaries.of(customer);
     }
 
+    @PostMapping("/{id}/slip")
+    public Map<String, Object> reprintSlip(@PathVariable Long id) {
+        return Map.of("checkout", id, "printed", workflow.reprintSlip(id));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Checkout> one(@PathVariable Long id) {
         return checkouts.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());

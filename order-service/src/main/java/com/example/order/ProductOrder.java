@@ -9,11 +9,16 @@ public class ProductOrder {
     private double price;
     private int quantity = 1;
     private Long checkoutId;
+    private Long itemId;
 
     public ProductOrder() {}
     public ProductOrder(Long id, String productName, double price) { this.id = id; this.productName = productName; this.price = price; }
     public ProductOrder(String productName, double price, int quantity, Long checkoutId) {
+        this(productName, price, quantity, checkoutId, null);
+    }
+    public ProductOrder(String productName, double price, int quantity, Long checkoutId, Long itemId) {
         this.productName = productName; this.price = price; this.quantity = quantity; this.checkoutId = checkoutId;
+        this.itemId = itemId;
     }
 
     public Long getId() { return id; }
@@ -26,4 +31,6 @@ public class ProductOrder {
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public Long getCheckoutId() { return checkoutId; }
     public void setCheckoutId(Long checkoutId) { this.checkoutId = checkoutId; }
+    public Long getItemId() { return itemId; }
+    public void setItemId(Long itemId) { this.itemId = itemId; }
 }

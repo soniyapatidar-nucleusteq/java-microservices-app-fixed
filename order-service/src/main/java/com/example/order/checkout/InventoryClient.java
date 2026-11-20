@@ -32,7 +32,12 @@ public class InventoryClient {
     }
 
     /** An inventory item as inventory-service returns it. */
-    public record StockItem(Long id, String name, int quantity, double unitPrice) {}
+    public record StockItem(Long id, String name, int quantity, double unitPrice, String bin) {}
+
+    /** inventory-service has no item with this id (any more). */
+    public static class NoSuchItemException extends RuntimeException {
+        NoSuchItemException(long itemId) { super("There is no inventory item " + itemId); }
+    }
 
     public StockItem reserve(long itemId, int units, long checkout) {
         return call("reserve", itemId, () -> http.post()
@@ -43,6 +48,16 @@ public class InventoryClient {
             })
             .onStatus(status -> status.value() == 404, (request, response) -> {
                 throw new InvalidCheckoutException("There is no inventory item " + itemId);
+            })
+            .body(StockItem.class));
+    }
+
+    public StockItem getItem(long itemId) {
+        return call("look up", itemId, () -> http.get()
+            .uri("/api/items/{id}", itemId)
+            .retrieve()
+            .onStatus(status -> status.value() == 404, (request, response) -> {
+                throw new NoSuchItemException(itemId);
             })
             .body(StockItem.class));
     }
