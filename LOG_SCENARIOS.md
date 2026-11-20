@@ -134,28 +134,32 @@ without a time of their own that arrive together are read as one error):
 | **Run reconciliation** (scenario 7) | `ERROR lookup failed for item 7`, one per item per pass (same wording as the line above, **another service and file**) | `StockReconciliation.lookupFailed` (inventory-service) |
 
 ### 7. Database connection exhaustion (RCA and blast radius)
-Both services use one Postgres (`postgres` in docker-compose, database `shop`), with a pool of a
-single connection each (`spring.datasource.hikari.maximum-pool-size=1`, timeout 5 s).
+The shop has **one database connection for the whole system**. Both services reach Postgres
+(`postgres`, database `shop`) only through **PgBouncer** (`pgbouncer` in docker-compose), which holds
+that single server connection and lends it to one transaction at a time (`pool_mode = transaction`,
+`default_pool_size = 1`, `max_db_connections = 1`). A query that waits more than 5 s for it is refused
+(`query_wait_timeout = 5`). Postgres sees exactly one session: PgBouncer's.
 
-1. **Stock reconciliation** card: **Run reconciliation**. The run holds inventory-service's only
-   connection for its whole run (one read-only transaction, its snapshot) while its 4 worker threads
-   each need a connection for their ledger check: they wait 5 s, fail and are retried, pass after
-   pass (defect H). The run never finishes.
-2. While it runs, everything in inventory-service that touches the database fails after 5 s:
-   the Inventory list, **Checkout** (reserve stock; order-service then reports inventory unreachable,
-   503, after its retries), **Supplier feed**, **Reprint slip**.
-   - inventory-service logs `inventory-pool - Connection is not available, request timed out after 5000ms`
-     with traces (category `resource_exhausted`), and the workers print `ERROR lookup failed for item N`.
-   - order-service logs `Retries exhausted after 3 attempts calling inventory-service ... Read timed out`.
+1. **Stock reconciliation** card: **Run reconciliation**. The run holds the transaction (and so the
+   system's only database connection) for its whole run, its read-only snapshot, while its 4 worker
+   threads each need the connection for their ledger check: they wait 5 s, are refused and retried,
+   pass after pass (defect H). The run never finishes.
+2. While it runs, **every database call of both services** fails after 5 s:
+   - inventory-service: the Inventory list, reserve stock, supplier feed;
+   - order-service: the orders list, recent checkouts, customer summary, direct orders, checkout.
+   Logs: `pgbouncer` says `pooler error: query_wait_timeout` and `closing because: query_wait_timeout`;
+   both services log `FATAL: query_wait_timeout`, `This connection has been closed` and their client
+   pools (`inventory-pool` / `order-pool`) timing out behind the refused queries; the workers print
+   `ERROR lookup failed for item N`.
 3. **Cancel reconciliation**: the workers are stopped, the run's transaction is rolled back and the
-   connection returned; the next request works at once. The workers still waiting for a connection
+   connection returned; the next request of either service works at once. The workers still waiting
    are interrupted, and Hibernate logs `inventory-pool - Interrupted during connection acquisition`
    (ERROR), so cancelling opens one small Incident of its own.
 
-What the platform shows today (its current rules, not the app): the pool Incident's cause is
-`service:inventory-service` (resource exhaustion is read as the service's own problem), its
-FAILED_IN the frame that timed out; the code graph has one `database:postgresql://postgres:5432/shop`
-node that both services depend on, and a `service:postgres` node from docker-compose.
+In the code graph both services depend on one database node, `database:postgresql://pgbouncer:6432/shop`
+(named by the address the services connect to), and on `service:pgbouncer`, which depends on
+`service:postgres`. What the platform shows today (its current rules, not the app): each service's
+Incident is caused by that service itself; nothing yet joins them at the shared connection.
 
 ## Known defects (left in on purpose)
 
@@ -168,4 +172,4 @@ node that both services depend on, and a `service:postgres` node from docker-com
 | E | `SupplierFeedImporter.importFeed` | Columns are found by their header name, and a missing one (`price` instead of `unitPrice`) is not checked: its index is -1. | Incident (scenario 5) |
 | F | `CustomerSummary.of` | The average basket divides by the number of confirmed checkouts, which is 0 for a customer who has none. | Incident (scenario 5) |
 | G | `SupplierFeedImporter.importFeed` | A product a supplier feed creates gets no warehouse bin, so its packing slip is held at the dock. | `ERROR slip N: no bin location ...` print (scenario 6) |
-| H | `StockReconciliation.checkAll` | The run keeps one transaction (and so the pool's only connection) open while it waits for workers that each need a connection; failed checks are retried without limit. | pool exhaustion across inventory and checkout (scenario 7) |
+| H | `StockReconciliation.checkAll` | The run keeps one transaction (and so the system's only database connection) open while it waits for workers that each need it; failed checks are retried without limit. | every database call of both services fails (scenario 7) |

@@ -1,5 +1,6 @@
 services:
-  # The shop's one database, shared by both services (each keeps its own tables).
+  # The shop's one database, shared by both services (each keeps its own tables), reached only
+  # through pgbouncer.
   # No volume: `docker compose down` starts it empty again.
   postgres:
     image: postgres:16-alpine
@@ -15,6 +16,16 @@ services:
     networks:
       - app-network
 
+  # The single connection to Postgres for the whole system: every service queries through it.
+  pgbouncer:
+    build:
+      context: ./pgbouncer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   inventory-service:
     build:
       context: ./inventory-service
@@ -23,8 +34,8 @@ services:
     environment:
       - SERVER_PORT=8081
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
     networks:
       - app-network
 
@@ -38,8 +49,8 @@ services:
       # Checkout reserves and releases stock through inventory-service's API.
       - INVENTORY_BASE_URL=http://inventory-service:8081
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
       inventory-service:
         condition: service_started
     networks:

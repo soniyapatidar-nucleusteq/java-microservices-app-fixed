@@ -1,7 +1,9 @@
 # Java Microservices App
 
-Two Spring Boot services sharing one Postgres database (`postgres` in docker-compose, database `shop`),
-with a pool of one connection per service. Data lasts until `docker compose down`.
+Two Spring Boot services sharing one Postgres database (`postgres` in docker-compose, database `shop`).
+There is ONE database connection for the whole system: both services connect through PgBouncer
+(`pgbouncer/`), which holds that single connection and lends it to one transaction at a time.
+Data lasts until `docker compose down`.
 
 | Service           | Port | API             | UI                       |
 |-------------------|------|-----------------|--------------------------|
@@ -29,9 +31,10 @@ docker compose up --build
 ```
 
 ## Run locally (JDK 17+ and Maven required)
-Needs a Postgres reachable as in `SPRING_DATASOURCE_URL` (default `jdbc:postgresql://postgres:5432/shop`,
-user/password `shop`). The compose `postgres` publishes no host port, so for a local run use your own
-Postgres, e.g. `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/shop`.
+Needs the database reachable as in `SPRING_DATASOURCE_URL` (default
+`jdbc:postgresql://pgbouncer:6432/shop?prepareThreshold=0`, user/password `shop`). The compose services
+publish no host port for it, so for a local run point it at your own Postgres, e.g.
+`SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/shop`.
 Start BOTH services, in two terminals:
 ```bash
 cd inventory-service && mvn spring-boot:run
