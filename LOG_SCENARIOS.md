@@ -131,7 +131,6 @@ without a time of their own that arrive together are read as one error):
 |---|---|---|
 | **Supplier feed** adding a new product, e.g. `name;quantity;unitPrice` / `Desk Lamp;12;18.90`, then **Checkout** 2 x Desk Lamp | `ERROR slip 5: no bin location for Desk Lamp, slip held` (defect G) | `PackingSlipPrinter.print` (order-service) |
 | Then delete Desk Lamp in the Inventory list and click **Reprint slip** on that checkout | `ERROR lookup failed for item 11` | `PackingSlipPrinter.lookupFailed` (order-service) |
-| **Run reconciliation** (scenario 7) | `ERROR lookup failed for item 7`, one per item per pass (same wording as the line above, **another service and file**) | `StockReconciliation.lookupFailed` (inventory-service) |
 
 ### 7. Database connection exhaustion (RCA and blast radius)
 The shop has **one database connection for the whole system**. Both services reach Postgres
@@ -149,8 +148,10 @@ that single server connection and lends it to one transaction at a time (`pool_m
    - order-service: the orders list, recent checkouts, customer summary, direct orders, checkout.
    Logs: `pgbouncer` says `pooler error: query_wait_timeout` and `closing because: query_wait_timeout`;
    both services log `FATAL: query_wait_timeout`, `This connection has been closed` and their client
-   pools (`inventory-pool` / `order-pool`) timing out behind the refused queries; the workers print
-   `ERROR lookup failed for item N`.
+   pools (`inventory-pool` / `order-pool`) timing out behind the refused queries. These are standard
+   logs: after each pass `StockReconciliation` logs `Reconciliation run N pass P: ledger check failed
+   for 10 of 10 items, retrying them` (ERROR) with the first failure's stack trace, whose own frame is
+   `StockReconciliation.lambda$checkAll` (the worker's ledger query).
 3. **Cancel reconciliation**: the workers are stopped, the run's transaction is rolled back and the
    connection returned; the next request of either service works at once. The workers still waiting
    are interrupted, and Hibernate logs `inventory-pool - Interrupted during connection acquisition`

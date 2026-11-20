@@ -141,6 +141,7 @@ public class StockReconciliation {
                 checks.put(item, run.workers.submit(() -> ledger.ledgerStock(item.getId())));
             }
             List<Item> retry = new ArrayList<>();
+            Throwable firstFailure = null;
             for (Map.Entry<Item, Future<Long>> check : checks.entrySet()) {
                 Item item = check.getKey();
                 try {
@@ -153,20 +154,22 @@ public class StockReconciliation {
                     }
                 } catch (ExecutionException e) {
                     retry.add(item);
-                    lookupFailed(item.getId());
+                    if (firstFailure == null) {
+                        firstFailure = e.getCause();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("reconciliation interrupted", e);
                 }
+            }
+            if (firstFailure != null) {
+                log.error("Reconciliation run {} pass {}: ledger check failed for {} of {} items, retrying them",
+                    run.id, run.pass, retry.size(), checks.size(), firstFailure);
             }
             pending = retry;
             run.retrying = retry.size();
             System.out.println("reconcile run " + run.id + " pass " + run.pass + ": " + run.checked + " of "
                 + run.total + " items checked, " + retry.size() + " retrying");
         }
-    }
-
-    private static void lookupFailed(Long itemId) {
-        System.out.println("ERROR lookup failed for item " + itemId);
     }
 }
