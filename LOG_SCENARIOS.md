@@ -148,7 +148,9 @@ single connection each (`spring.datasource.hikari.maximum-pool-size=1`, timeout 
      with traces (category `resource_exhausted`), and the workers print `ERROR lookup failed for item N`.
    - order-service logs `Retries exhausted after 3 attempts calling inventory-service ... Read timed out`.
 3. **Cancel reconciliation**: the workers are stopped, the run's transaction is rolled back and the
-   connection returned; the next request works at once.
+   connection returned; the next request works at once. The workers still waiting for a connection
+   are interrupted, and Hibernate logs `inventory-pool - Interrupted during connection acquisition`
+   (ERROR), so cancelling opens one small Incident of its own.
 
 What the platform shows today (its current rules, not the app): the pool Incident's cause is
 `service:inventory-service` (resource exhaustion is read as the service's own problem), its
